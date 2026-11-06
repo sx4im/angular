@@ -520,6 +520,50 @@ for (const browserAPI of ['navigation', 'history'] as const) {
   });
 }
 
+describe(`canceledNavigationResolution: 'computed' with a restored page id on first navigation`, () => {
+  useAutoTick();
+
+  @Injectable({providedIn: 'root'})
+  class RejectingCanActivateGuard {
+    canActivate(): boolean {
+      return false;
+    }
+  }
+
+  it('should not move through history when the first navigation after a reload is cancelled', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(
+          [
+            {path: 'first', component: SimpleCmp},
+            {path: 'second', component: SimpleCmp, canActivate: [RejectingCanActivateGuard]},
+            {path: 'third', component: SimpleCmp},
+          ],
+          withRouterConfig({
+            canceledNavigationResolution: 'computed',
+            resolveNavigationPromiseOnError: true,
+          }),
+        ),
+      ],
+    });
+    const location = TestBed.inject(Location);
+    // Simulate the history left behind by a previous app instance: the user navigated
+    // to /first and then /second before reloading on /second.
+    location.go('/first', '', {navigationId: 0, ɵrouterPageId: 1});
+    location.go('/second', '', {navigationId: 1, ɵrouterPageId: 2});
+    expect(location.path()).toEqual('/second');
+
+    const router = TestBed.inject(Router);
+    await createRoot(router, RootCmp);
+    await timeout(5);
+
+    // The cancelled initial navigation must leave the history position unchanged
+    // instead of calling history.go() with a stale page id delta.
+    expect(location.path()).toEqual('/second');
+    expect(location.getState()).toEqual(jasmine.objectContaining({ɵrouterPageId: 2}));
+  });
+});
+
 async function createRoot<T>(router: Router, type: Type<T>): Promise<ComponentFixture<T>> {
   const f = TestBed.createComponent(type);
   router.initialNavigation();

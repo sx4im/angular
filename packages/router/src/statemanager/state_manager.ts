@@ -221,6 +221,13 @@ export class HistoryStateManager extends StateManager {
   override handleRouterEvent(e: Event | PrivateRouterEvents, currentTransition: Navigation): void {
     if (e instanceof NavigationStart) {
       this.updateStateMemento();
+      if (this.lastSuccessfulId === -1) {
+        // A new app instance (e.g. after a reload) starts with `currentPageId` 0, but the
+        // current history entry may still carry the previous instance's `ɵrouterPageId`.
+        // Sync to it so a cancelled first navigation computes a zero history delta
+        // instead of jumping back through the history.
+        this.currentPageId = this.browserPageId;
+      }
     } else if (e instanceof NavigationSkipped) {
       this.commitTransition(currentTransition);
     } else if (e instanceof RoutesRecognized) {
